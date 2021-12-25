@@ -37,6 +37,8 @@ class MultiPlayer(QMediaPlayer):
                 p.play()
             elif state == QMediaPlayer.PausedState:
                 p.pause()
+            elif state == QMediaPlayer.StoppedState:
+                p.stop()
 
     def addMedia(self, *args):
         # Check if args is a list

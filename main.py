@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import sys
 
 from PyQt5.QtCore import Qt
@@ -117,10 +118,12 @@ class MainWindow(QMainWindow):
 
     def setPlaybackRate(self, rate):
         resumePos = self.mplayer.position()
+        prevState = self.mplayer.state()
         self.mplayer.stop()
         self.mplayer.setPlaybackRate(rate)
         self.mplayer.mp_setPosition(resumePos)
-        self.mplayer.play()
+        if prevState == QMediaPlayer.PlayingState:
+            self.mplayer.play()
 
     def prompt_openFiles(self):
         self.mplayer.stop()
