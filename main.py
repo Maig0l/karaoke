@@ -1,22 +1,18 @@
-## A QSlider, showing song position, and moving controls
-## And a QLabel showing timeElapsed/timeTotal
-
 import sys
 
-from PyQt5.QtWidgets import QSlider, QLabel, QPushButton, QDoubleSpinBox, QFileDialog
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QSlider, QLabel, QPushButton, QDoubleSpinBox, QFileDialog, QMainWindow, QWidget, \
+    QVBoxLayout, QApplication
+from PyQt5.QtMultimedia import QAudio, QMediaPlayer
 
 import utils
-from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtMultimedia import QAudio, QMediaPlayer, QMediaContent
-
 from multiplayer import MultiPlayer
 
 streams = ["file:/home/miguel/dox/projects/python/karaoke/streams/bo/off-vocal.flac",
            "file:/home/miguel/dox/projects/python/karaoke/streams/bo/vocals.flac"]
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -25,17 +21,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mediaDurationSecs = 0
 
         self.setup_ui()
+        self.show()
 
     def setup_ui(self):
         self.setWindowTitle("Player")
         self.resize(350, 0)
 
-        self.centralWid = QtWidgets.QWidget(self)
-        self.layout = QtWidgets.QVBoxLayout(self.centralWid)
+        self.centralWid = QWidget(self)
+        self.layout = QVBoxLayout(self.centralWid)
         self.setCentralWidget(self.centralWid)
 
         # Create widgets (Players, Status, Controls)
-        # TODO: Make a "Meta-Player" Class that unifies both players
         self.mplayer = MultiPlayer(self.layout, QMediaPlayer.LowLatency)
         self.sldr_pos = QSlider(Qt.Horizontal)
         self.lbl_time = QLabel()
@@ -44,18 +40,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_open = QPushButton("Open files...")
         self.btn_play = QPushButton("Play/Pause")
 
+        self.mplayer.addMedia(streams)
+
         self.sldr_pos.setRange(0, 0)
         self.sldr_vocalVol.setRange(0, 100)
         self.sldr_vocalVol.setValue(100)
-
-        self.lbl_time.setText(utils.makeTimeStamp(0, 0))
-        self.lbl_time.setAlignment(Qt.AlignRight)
 
         self.spn_speed.setRange(0.25, 2)
         self.spn_speed.setSingleStep(0.05)
         self.spn_speed.setValue(1)
 
-        self.mplayer.addMedia(streams)
+        self.lbl_time.setText(utils.makeTimeStamp(0, 0))
+        self.lbl_time.setAlignment(Qt.AlignRight)
 
         # Add to layout
         self.layout.addWidget(self.btn_open)
@@ -65,7 +61,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.spn_speed)
         self.layout.addWidget(self.btn_play)
 
-        # Connect actions
+        # Connect signals
         self.sldr_pos.sliderReleased.connect(self.seekMedia)
         self.sldr_pos.sliderPressed.connect(self.hook_deactivatePosUpdaters)
 
@@ -73,13 +69,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.hook_activatePosUpdaters()
 
         self.btn_open.clicked.connect(self.prompt_openFiles)
-        self.btn_play.clicked.connect(self.play_snd)
+        self.btn_play.clicked.connect(self.hook_btnPlay)
 
         self.sldr_vocalVol.valueChanged.connect(self.plyrVoc_setVolume)
 
         self.spn_speed.valueChanged.connect(self.setPlaybackRate)
 
-    def play_snd(self):
+    def hook_btnPlay(self):
         if self.mplayer.state() == QMediaPlayer.PlayingState:
             self.mplayer.pause()
         else:
@@ -143,7 +139,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mplayer.addMedia(["file:"+fileBg, "file:"+fileVoc])
 
 
-app = QtWidgets.QApplication(sys.argv)
+app = QApplication(sys.argv)
 window = MainWindow()
-window.show()
 app.exec_()

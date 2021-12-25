@@ -5,9 +5,8 @@ X Verify it plays multiple streams
 X Verify interface compatibility
 - THEN try to implement buffers
 """
+
 import sys
-import time
-from typing import List
 
 from PyQt5.QtCore import QObject, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
@@ -26,36 +25,34 @@ class MultiPlayer(QMediaPlayer):
             self.players.append(QMediaPlayer())
 
         # Sync signals
-        # Position change should be handled by a method, as position constantly changes throughout playback
+        # Manual position change should be handled by a method, as position constantly changes throughout playback
         self.stateChanged.connect(self.hook_stateChanged)
         for p in self.players[1:]:
             self.mutedChanged.connect(p.setMuted)
             self.playbackRateChanged.connect(p.setPlaybackRate)
 
     def hook_stateChanged(self, state):
-        print(f"Master state changed: {state}")
         for p in self.players[1:]:
             if state == QMediaPlayer.PlayingState:
                 p.play()
             elif state == QMediaPlayer.PausedState:
                 p.pause()
 
-    # FIXME
-    def addMedia(self, *args: str):
-        """Currently only allows opening from files (with file: prefix)"""
+    def addMedia(self, *args):
+        # Check if args is a list
+        if isinstance(args[0], list) or \
+                isinstance(args[0], tuple):
+            args = args[0]
+
         assert 0 < len(args) <= self.nPlayers
         for p, track in zip(self.players, args):
             p.setMedia(QMediaContent(QUrl(track)))
-
-    def addMedia(self, streams: List[str]):
-        for p, s in zip(self.players, streams):
-            p.setMedia(QMediaContent(QUrl(s)))
 
     def setMediaToPlayer(self, index: int, media: str):
         self.players[index].setMedia(QMediaContent(QUrl(media)))
 
     # TODO: See if I can use setPosition method name instead of using prefix
-    def mp_setPosition(self, position: int) -> None:
+    def mp_setPosition(self, position: int):
         for p in self.players:
             p.setPosition(position)
 
