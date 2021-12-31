@@ -1,14 +1,9 @@
-"""MultiPlayer is a class that implements two QMediaPlayers and syncs their states to be simultaneous.
-
-TODO:
-X Verify it plays multiple streams
-X Verify interface compatibility
-- THEN try to implement buffers
-"""
+"""MultiPlayer is a class that implements two QMediaPlayers and syncs their states to be simultaneous."""
 
 import sys
+from typing import Union
 
-from PyQt5.QtCore import QObject, QUrl
+from PyQt5.QtCore import QObject, QUrl, QBuffer
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtWidgets import QApplication
 
@@ -40,7 +35,7 @@ class MultiPlayer(QMediaPlayer):
             elif state == QMediaPlayer.StoppedState:
                 p.stop()
 
-    def addMedia(self, *args):
+    def addMedia(self, *args: Union[str, QBuffer]):
         # Check if args is a list
         if isinstance(args[0], list) or \
                 isinstance(args[0], tuple):
@@ -48,10 +43,16 @@ class MultiPlayer(QMediaPlayer):
 
         assert 0 < len(args) <= self.nPlayers
         for p, track in zip(self.players, args):
-            p.setMedia(QMediaContent(QUrl(track)))
+            if isinstance(track, str):
+                p.setMedia(QMediaContent(QUrl(track)))
+            elif isinstance(track, QBuffer):
+                p.setMedia(QMediaContent(), track)
 
-    def setMediaToPlayer(self, index: int, media: str):
-        self.players[index].setMedia(QMediaContent(QUrl(media)))
+    def setTrackToPlayer(self, index: int, track: Union[str, QBuffer]):
+        if isinstance(track, str):
+            self.players[index].setMedia(QMediaContent(QUrl(track)))
+        elif isinstance(track, QBuffer):
+            self.players[index].setMedia(QMediaContent(), track)
 
     # TODO: See if I can use setPosition method name instead of using prefix
     def mp_setPosition(self, position: int):

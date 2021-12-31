@@ -1,22 +1,25 @@
 #!/usr/bin/python3
 import sys
+import librosa
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QSlider, QLabel, QPushButton, QDoubleSpinBox, QFileDialog, QMainWindow, QWidget, \
-    QVBoxLayout, QApplication
+    QVBoxLayout, QApplication, QSpinBox
 from PyQt5.QtMultimedia import QAudio, QMediaPlayer
 
 import utils
 from multiplayer import MultiPlayer
+from track import Track
 
-streams = ["file:/home/miguel/dox/projects/python/karaoke/streams/bo/off-vocal.flac",
-           "file:/home/miguel/dox/projects/python/karaoke/streams/bo/vocals.flac"]
+tracks = ["streams/bo/off-vocal.flac",
+          "streams/bo/vocals.flac"]
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.tracks = []
         self.duration = 0
         self.pos = 0
         self.mediaDurationSecs = 0
@@ -37,19 +40,27 @@ class MainWindow(QMainWindow):
         self.sldr_pos = QSlider(Qt.Horizontal)
         self.lbl_time = QLabel()
         self.sldr_vocalVol = QSlider(Qt.Horizontal)
-        self.spn_speed = QDoubleSpinBox()
+        self.spn_pitch = QSpinBox()
+        self.spn_tempo = QDoubleSpinBox()
         self.btn_open = QPushButton("Open files...")
         self.btn_play = QPushButton("Play/Pause")
 
-        self.mplayer.addMedia(streams)
+        self.mplayer.addMedia(tracks)
+        for idx, track in enumerate(tracks):
+            self.tracks.append(Track(track))
+            self.mplayer.setTrackToPlayer(idx, self.tracks[idx].buffer)
 
         self.sldr_pos.setRange(0, 0)
         self.sldr_vocalVol.setRange(0, 100)
         self.sldr_vocalVol.setValue(100)
 
-        self.spn_speed.setRange(0.25, 2)
-        self.spn_speed.setSingleStep(0.05)
-        self.spn_speed.setValue(1)
+        self.spn_pitch.setRange(-12, 12)
+        self.spn_pitch.setSingleStep(1)
+        self.spn_pitch.setValue(0)
+
+        self.spn_tempo.setRange(0.25, 2)
+        self.spn_tempo.setSingleStep(0.05)
+        self.spn_tempo.setValue(1)
 
         self.lbl_time.setText(utils.makeTimeStamp(0, 0))
         self.lbl_time.setAlignment(Qt.AlignRight)
@@ -58,8 +69,12 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.btn_open)
         self.layout.addWidget(self.sldr_pos)
         self.layout.addWidget(self.lbl_time)
+        self.layout.addWidget(QLabel("Vocals volume:"))
         self.layout.addWidget(self.sldr_vocalVol)
-        self.layout.addWidget(self.spn_speed)
+        self.layout.addWidget(QLabel("Pitch:"))
+        self.layout.addWidget(self.spn_pitch)
+        self.layout.addWidget(QLabel("Tempo:"))
+        self.layout.addWidget(self.spn_tempo)
         self.layout.addWidget(self.btn_play)
 
         # Connect signals
@@ -74,7 +89,8 @@ class MainWindow(QMainWindow):
 
         self.sldr_vocalVol.valueChanged.connect(self.plyrVoc_setVolume)
 
-        self.spn_speed.valueChanged.connect(self.setPlaybackRate)
+        self.spn_pitch.valueChanged.connect(self.setPitch)
+        self.spn_tempo.valueChanged.connect(self.setTempo)
 
     def hook_btnPlay(self):
         if self.mplayer.state() == QMediaPlayer.PlayingState:
@@ -111,10 +127,36 @@ class MainWindow(QMainWindow):
     def plyrVoc_setVolume(self, vol):
         # Divide vol by 100 to get a value in range 0..1
         # The second player in mplayer must be the vocal track
-        logVol = QAudio.convertVolume(vol/100,
+        logVol = QAudio.convertVolume(vol / 100,
                                       QAudio.LogarithmicVolumeScale,
                                       QAudio.LinearVolumeScale)
-        self.mplayer.players[1].setVolume(logVol*100)
+        self.mplayer.players[1].setVolume(logVol * 100)
+
+    @utils.timer
+    def setTempo(self, spin_value):
+        """Hook from spin box for pitch control"""
+        resumePos = self.mplayer.position() / self.mplayer.duration()
+        prevState = self.mplayer.state()
+        self.mplayer.stop()
+        for idx, t in enumerate(self.tracks):
+            t.setStretch(spin_value)
+            self.mplayer.setTrackToPlayer(idx, self.tracks[idx].buffer)
+        self.mplayer.mp_setPosition(self.mplayer.duration() * resumePos)
+        if prevState == QMediaPlayer.PlayingState:
+            self.mplayer.play()
+
+    @utils.timer
+    def setPitch(self, spin_value):
+        """Hook from spin box for pitch control"""
+        resumePos = self.mplayer.position()
+        prevState = self.mplayer.state()
+        self.mplayer.stop()
+        for idx, t in enumerate(self.tracks):
+            t.setPitch(spin_value)
+            self.mplayer.setTrackToPlayer(idx, self.tracks[idx].buffer)
+        self.mplayer.mp_setPosition(resumePos)
+        if prevState == QMediaPlayer.PlayingState:
+            self.mplayer.play()
 
     def setPlaybackRate(self, rate):
         resumePos = self.mplayer.position()
@@ -128,18 +170,18 @@ class MainWindow(QMainWindow):
     def prompt_openFiles(self):
         self.mplayer.stop()
 
-        fileBg = QFileDialog.getOpenFileName(self, "Pick Instrumental track",
-                                             filter="Audio Files (*.wav *.flac *.mp3 *.opus *.m4a)")[0]
-        if not fileBg:
+        fileBg, loadOk = QFileDialog.getOpenFileName(self, "Pick Instrumental track",
+                                                     filter="Audio Files (*.wav *.flac *.mp3 *.opus *.m4a)")
+        if not loadOk:
             return False
 
-        fileVoc = QFileDialog.getOpenFileName(self, "Pick Vocal track",
-                                              filter="Audio Files (*.wav *.flac *.mp3 *.opus *.m4a)")[0]
-        if not fileVoc:
+        fileVoc, loadOk = QFileDialog.getOpenFileName(self, "Pick Vocal track",
+                                                      filter="Audio Files (*.wav *.flac *.mp3 *.opus *.m4a)")
+        if not loadOk:
             return False
 
-        print(fileBg, fileVoc)
-        self.mplayer.addMedia(["file:"+fileBg, "file:"+fileVoc])
+        self.tracks = [Track(path) for path in (fileBg, fileVoc)]
+        self.mplayer.addMedia([track.buffer for track in self.tracks])
 
 
 app = QApplication(sys.argv)
